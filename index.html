@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Escáner de QR NEXTGENS</title>
+  <title>Escáner de QR de NEXTGENS</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style id="app-style">
@@ -130,7 +130,23 @@
           </div>
         </div>
       </div>
-      
+
+      <div id="image-upload-container" class="w-full max-w-lg mt-6">
+        <input id="image-upload"
+               type="file"
+               accept="image/png, image/jpeg"
+               class="block w-full text-gray-700 border border-gray-300 rounded p-2"
+        />
+        <div id="image-preview" class="hidden mt-4">
+          <img id="preview-img" class="w-full rounded shadow" />
+        </div>
+        <button id="scan-image-btn"
+                class="hidden mt-4 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded"
+        >
+          <i class="fas fa-camera"></i> Escanear imagen
+        </button>
+      </div>
+
       <div id="status-text" class="mt-4 text-center text-gray-600">
         Alinea el código QR en el marco
       </div>
@@ -177,12 +193,16 @@
       const resultText = document.getElementById('result-text');
       const openUrlBtn = document.getElementById('open-url-btn');
       const scanAgainBtn = document.getElementById('scan-again-btn');
-      
+      const imageUpload = document.getElementById('image-upload');
+      const imagePreview = document.getElementById('image-preview');
+      const previewImg = document.getElementById('preview-img');
+      const scanImageBtn = document.getElementById('scan-image-btn');
+
       let scanning = false;
       let stream = null;
       let canvas = document.createElement('canvas');
       let canvasContext = canvas.getContext('2d');
-      
+
       function startScanner() {
         cameraContainer.classList.remove('hidden');
         statusText.classList.remove('hidden');
@@ -268,12 +288,60 @@
         }
       }
       
+      // +++ Handle image selection +++
+      imageUpload.addEventListener('change', () => {
+        const file = imageUpload.files[0];
+        if (!file) return;
+        if (!/^(image\/png|image\/jpeg)$/.test(file.type)) {
+          alert('Solo se permiten PNG o JPEG');
+          return;
+        }
+
+        // Hide camera UI
+        stopScanner();
+        cameraContainer.classList.add('hidden');
+        statusText.classList.add('hidden');
+        resultPanel.classList.add('hidden');
+        errorElement.classList.add('hidden');
+
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = e => {
+          previewImg.src = e.target.result;
+          imagePreview.classList.remove('hidden');
+          scanImageBtn.classList.remove('hidden');
+        };
+        reader.onerror = () => {
+          alert('Error al leer la imagen');
+        };
+        reader.readAsDataURL(file);
+      });
+
+      // +++ Scan the uploaded image +++
+      scanImageBtn.addEventListener('click', () => {
+        // draw preview image onto hidden canvas
+        const img = previewImg;
+        canvas.width  = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvasContext.drawImage(img, 0, 0);
+
+        const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+
+        if (code) {
+          showResult(code.data);
+        } else {
+          errorText.textContent = 'No se encontró un código QR en la imagen';
+          errorElement.classList.remove('hidden');
+        }
+      });
+
       // Reset and start scanning again
       scanAgainBtn.addEventListener('click', () => {
         startScanner();
       });
       
-      // Start scanner on page load
+      // Start camera on load
       startScanner();
     });
   </script>
