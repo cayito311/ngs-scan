@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Escáner de QR</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style id="app-style">
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+    
+    .scanner-container {
+      position: relative;
+      overflow: hidden;
+      max-height: 70vh;
+    }
+    
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 10px;
+    }
+    
+    .scanner-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .scan-area {
+      width: 200px;
+      height: 200px;
+      border: 2px solid #fff;
+      border-radius: 10px;
+      position: relative;
+    }
+    
+    .scan-area::before,
+    .scan-area::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-color: #3b82f6;
+      border-style: solid;
+    }
+    
+    .scan-area::before {
+      top: -2px;
+      left: -2px;
+      border-width: 2px 0 0 2px;
+    }
+    
+    .scan-area::after {
+      bottom: -2px;
+      right: -2px;
+      border-width: 0 2px 2px 0;
+    }
+    
+    .scan-line {
+      position: absolute;
+      height: 2px;
+      width: 100%;
+      background: #3b82f6;
+      top: 50%;
+      animation: scan 2s linear infinite;
+    }
+    
+    @keyframes scan {
+      0% {
+        top: 10%;
+      }
+      50% {
+        top: 90%;
+      }
+      100% {
+        top: 10%;
+      }
+    }
+    
+    .result-panel {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-top: 20px;
+      transition: all 0.3s ease;
+    }
+    
+    .loader {
+      border: 3px solid #f3f3f3;
+      border-radius: 50%;
+      border-top: 3px solid #3b82f6;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="container mx-auto px-4 py-8 flex flex-col h-screen">
+    <header class="text-center mb-4">
+      <h1 class="text-2xl font-bold text-gray-800">Escáner de QR</h1>
+    </header>
+    
+    <main class="flex-grow flex flex-col items-center justify-center">
+      <div id="camera-container" class="scanner-container w-full max-w-lg">
+        <video id="video" autoplay playsinline></video>
+        <div class="scanner-overlay">
+          <div class="scan-area">
+            <div class="scan-line"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="status-text" class="mt-4 text-center text-gray-600">
+        Alinea el código QR en el marco
+      </div>
+      
+      <div id="loading" class="hidden mt-8">
+        <div class="loader"></div>
+        <p class="mt-4 text-center text-gray-600">Inicializando cámara...</p>
+      </div>
+      
+      <div id="error-message" class="hidden mt-4 text-center text-red-500 bg-red-100 p-4 rounded-lg">
+        <i class="fas fa-exclamation-circle mr-2"></i>
+        <span id="error-text">No se pudo acceder a la cámara</span>
+      </div>
+      
+      <div id="result-panel" class="hidden result-panel w-full max-w-lg">
+        <h2 class="text-lg font-semibold mb-2">Resultado:</h2>
+        <div id="result-text" class="mb-4 p-3 bg-gray-100 rounded break-all"></div>
+        <div class="flex flex-wrap gap-2 justify-center">
+          <button id="open-url-btn" class="hidden bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded">
+            <i class="fas fa-external-link-alt mr-2"></i>Abrir en navegador
+          </button>
+          <button id="scan-again-btn" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded">
+            <i class="fas fa-redo mr-2"></i>Escanear de nuevo
+          </button>
+        </div>
+      </div>
+    </main>
+    
+    <footer class="text-center text-gray-500 text-sm py-4">
+      <p>© 2025 Escáner de QR</p>
+    </footer>
+  </div>
+
+  <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script id="app-script">
+    document.addEventListener('DOMContentLoaded', () => {
+      const video = document.getElementById('video');
+      const cameraContainer = document.getElementById('camera-container');
+      const statusText = document.getElementById('status-text');
+      const loadingElement = document.getElementById('loading');
+      const errorElement = document.getElementById('error-message');
+      const errorText = document.getElementById('error-text');
+      const resultPanel = document.getElementById('result-panel');
+      const resultText = document.getElementById('result-text');
+      const openUrlBtn = document.getElementById('open-url-btn');
+      const scanAgainBtn = document.getElementById('scan-again-btn');
+      
+      let scanning = false;
+      let stream = null;
+      let canvas = document.createElement('canvas');
+      let canvasContext = canvas.getContext('2d');
+      
+      function startScanner() {
+        cameraContainer.classList.remove('hidden');
+        statusText.classList.remove('hidden');
+        resultPanel.classList.add('hidden');
+        loadingElement.classList.remove('hidden');
+        errorElement.classList.add('hidden');
+        
+        scanning = true;
+        
+        navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 } 
+          } 
+        })
+        .then(mediaStream => {
+          stream = mediaStream;
+          video.srcObject = stream;
+          video.setAttribute('playsinline', true);
+          loadingElement.classList.add('hidden');
+          
+          video.onloadedmetadata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            requestAnimationFrame(scanQRCode);
+          };
+        })
+        .catch(err => {
+          loadingElement.classList.add('hidden');
+          errorElement.classList.remove('hidden');
+          errorText.textContent = `Error al acceder a la cámara: ${err.message}`;
+          console.error('Error accessing camera:', err);
+        });
+      }
+      
+      function stopScanner() {
+        scanning = false;
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      }
+      
+      function scanQRCode() {
+        if (!scanning) return;
+        
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+          
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+          });
+          
+          if (code) {
+            // Found a QR code
+            showResult(code.data);
+          } else {
+            // Keep scanning
+            requestAnimationFrame(scanQRCode);
+          }
+        } else {
+          requestAnimationFrame(scanQRCode);
+        }
+      }
+      
+      function showResult(data) {
+        stopScanner();
+        
+        cameraContainer.classList.add('hidden');
+        statusText.classList.add('hidden');
+        resultPanel.classList.remove('hidden');
+        resultText.textContent = data;
+        
+        // Check if the result is a URL
+        if (data.startsWith('http://') || data.startsWith('https://')) {
+          openUrlBtn.classList.remove('hidden');
+          openUrlBtn.addEventListener('click', () => {
+            window.open(data, '_blank');
+          });
+        } else {
+          openUrlBtn.classList.add('hidden');
+        }
+      }
+      
+      // Reset and start scanning again
+      scanAgainBtn.addEventListener('click', () => {
+        startScanner();
+      });
+      
+      // Start scanner on page load
+      startScanner();
+    });
+  </script>
+</body>
+</html>
